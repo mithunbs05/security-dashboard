@@ -1,10 +1,10 @@
-# Crowd Detection & Lost & Found System
+# Crowd Detection & Lost and Found System
 
 ## 📌 Overview
-The **Crowd Detection & Lost & Found System** is an AI-powered solution designed for managing large gatherings in **temples, festivals, events, and transportation hubs**.  
-It leverages **NVIDIA DeepStream SDK** and **computer vision models** to monitor people flow, detect overcrowding, and assist in locating missing individuals.  
+The **Crowd Detection & Lost and Found System** is an AI-powered solution designed for managing large gatherings in temples, festivals, events, and transportation hubs.
+It leverages the **NVIDIA DeepStream SDK** and **advanced computer vision models** to deliver real-time insights for safety and efficiency.
 
-At its core, the system combines **real-time crowd density estimation**, **face recognition for lost & found**, and **alert mechanisms** to improve safety and efficiency in high-density environments.
+At its core, the system integrates **crowd detection, traffic monitoring, lost and found** assistance through **face recognition, predictive crowd flow analysis, and emergency response tools** to improve safety, ensure smoother mobility, and enable proactive management in high-density environments.
 
 ---
 
