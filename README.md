@@ -1,4 +1,4 @@
-# Crowd Detection & Lost & Found System
+# Crowd Detection & Lost and Found System
 
 ## 📌 Overview
 The **Crowd Detection & Lost and Found System** is an AI-powered solution designed for managing large gatherings in temples, festivals, events, and transportation hubs.
