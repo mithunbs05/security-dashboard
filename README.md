@@ -14,8 +14,9 @@ At its core, the system combines **real-time crowd density estimation**, **face 
 - **Face Detection & Recognition** – Detects faces and matches them with registered/missing person records.
 - **Lost & Found Assistance** – Helps identify missing individuals in real-time.
 - **Anomaly Detection (Future)** – Detects unusual movement or suspicious activities.
-- **Web Dashboard (Upcoming)** – Frontend interface (React) for administrators and volunteers.
+- **Web Dashboard** – Frontend interface (React) for administrators and volunteers.
 - **Backend + Database (Future)** – Planned Django + MongoDB integration for data storage and search.
+- **Predictive Crowd Flow** - Forecasts crowd movement trends.
 
 ---
 
