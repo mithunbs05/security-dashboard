@@ -24,9 +24,13 @@ Make sure you have the following installed:
 - [OpenCV](https://opencv.org/) → for image & video processing  
 - [face_recognition](https://github.com/ageitgey/face_recognition) → for face detection & encoding  
 - [dlib](http://dlib.net/) → backend for face recognition (installed automatically with `face_recognition`)  
-- NumPy → for saving & loading face encodings  
+- NumPy → for saving & loading face encodings
+- Deepstream **7.1**
+  
 
 ### Installation
+
+Note : pyds must be bulided Please Refer Deepstream Documentations 
 
 ```bash
 # Create virtual environment (recommended)
@@ -39,3 +43,4 @@ pip install --upgrade pip
 
 # Install dependencies
 pip install opencv-python face_recognition numpy 
+
