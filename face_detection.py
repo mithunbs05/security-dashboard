@@ -1,5 +1,6 @@
 import numpy as np
 import face_recognition
+import cv2
 
 # ---------------------------
 # Step 1: Register Face (only run once or if you want to overwrite)
