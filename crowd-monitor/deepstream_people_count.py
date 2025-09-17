@@ -27,6 +27,7 @@ IN_LINE = [(740, 300), (1012, 296)]
 def osd_sink_pad_buffer_probe(pad, info, u_data):
     global IN_COUNT, OUT_COUNT, crossed_ids, track_history
 
+    # Per-frame display text (always start defined)
     try:
         buf = info.get_buffer()
         if not buf:
@@ -42,6 +43,10 @@ def osd_sink_pad_buffer_probe(pad, info, u_data):
             if not frame_meta:
                 l_frame = l_frame.next
                 continue
+
+            # --- initialize display_text for this frame ---
+            display_text = f"IN: {IN_COUNT}  |  OUT: {OUT_COUNT}"
+            crowd_alerted = False
 
             # ---- 1) IN/OUT counting ----
             obj_meta_list = frame_meta.obj_meta_list
@@ -73,11 +78,9 @@ def osd_sink_pad_buffer_probe(pad, info, u_data):
 
                 obj_meta_list = obj_meta_list.next
 
-            # ---- 2) Prepare display text ----
-            #display_text = f"IN: {IN_COUNT}  |  OUT: {OUT_COUNT}"
-
-            # ---- 3) Overcrowding detection (robust) ----
-            # Instead of relying on missing constants, try casting user_meta.user_meta_data
+            # ---- 2) Overcrowding detection (robust) ----
+            # Choose a safe default threshold (overrideable)
+            FRAME_OVERCROWD_THRESHOLD = 50  # change this to what you consider "crowd"
             user_meta_list = frame_meta.frame_user_meta_list
             found_analytics = False
             while user_meta_list is not None:
@@ -87,98 +90,86 @@ def osd_sink_pad_buffer_probe(pad, info, u_data):
                         user_meta_list = user_meta_list.next
                         continue
 
-                    # Try to cast the user_meta.user_meta_data to NvDsAnalyticsFrameMeta
+                    # Try to cast to analytics frame meta
                     try:
                         analytics_meta = pyds.NvDsAnalyticsFrameMeta.cast(user_meta.user_meta_data)
-                        # If cast succeeded and has ocStatus attribute, use it
-                        if analytics_meta and getattr(analytics_meta, "ocStatus", None) is not None:
+                        if analytics_meta:
                             found_analytics = True
-                            # ocStatus is typically a dict mapping roi_name -> bool
-                            for roi_name, status in analytics_meta.ocStatus.items():
-                                if status:
-                                    # add one alert line per frame if any ROI overcrowded
-                                    display_text += "\nCrowd Detected!"
-                                    print(f"[ALERT] Overcrowding detected in {roi_name}")
+                            # Defensive: print structure once if you are debugging
+                            # print("DEBUG analytics_meta fields:", dir(analytics_meta))
+                            # print("DEBUG ocStatus:", getattr(analytics_meta, "ocStatus", None))
+
+                            oc_status = getattr(analytics_meta, "ocStatus", None)
+                            if oc_status:
+                                # oc_status may be dict-like mapping roi_name -> <bool|int|...>
+                                for roi_name, status in oc_status.items():
+                                    # If status is boolean use it directly
+                                    if isinstance(status, bool):
+                                        if status:
+                                            crowd_alerted = True
+                                            display_text += "\nCrowd Detected!"
+                                            print(f"[ALERT] Overcrowding boolean in {roi_name}")
+                                    # If status is numeric treat it as count (compare to threshold)
+                                    elif isinstance(status, (int, float)):
+                                        # Prefer a threshold from analytics_meta if it exists
+                                        threshold = getattr(analytics_meta, "ocThreshold", FRAME_OVERCROWD_THRESHOLD)
+                                        if status >= threshold:
+                                            crowd_alerted = True
+                                            display_text += f"\nCrowd Detected in {roi_name} (count={status})"
+                                            print(f"[ALERT] Overcrowding in {roi_name}: {status} >= {threshold}")
+                                    else:
+                                        # Fallback: treat non-empty/truthy values as alert only if > 1 kind of indicator
+                                        if status:
+                                            crowd_alerted = True
+                                            display_text += f"\nCrowd Detected (roi:{roi_name})"
+                                            print(f"[ALERT] Overcrowding (unknown type) in {roi_name}: {status}")
                     except Exception:
-                        # Not analytics user meta; skip silently
+                        # not analytics user meta
                         pass
 
                 except Exception as e:
-                    # Defensive: log and continue
                     print("Warning: failed to cast user_meta:", e)
 
                 user_meta_list = user_meta_list.next
 
-            if not found_analytics:
-                # debug hint: uncomment for more info once to confirm analytics is running
-                # print("No analytics user-meta found in this frame.")
-                pass
-
-            # ---- 4) Acquire and populate display meta ----
+            # ---- 3) Acquire and populate display meta once ----
             try:
                 display_meta = pyds.nvds_acquire_display_meta_from_pool(batch_meta)
-                display_meta = pyds.nvds_acquire_display_meta_from_pool(batch_meta)
-                display_meta.num_labels = 2  # two separate text labels
-
-                # ---- ALERT line (top) ----
-                alert_text_params = display_meta.text_params[0]
-                alert_text_params.display_text = "⚠ ALERT: Overcrowd Detected"
-                alert_text_params.x_offset = 50
-                alert_text_params.y_offset = 30   # top position
-                alert_text_params.font_params.font_name = "Serif"
-                alert_text_params.font_params.font_size = 28
-                alert_text_params.font_params.font_color.set(1.0, 0.0, 0.0, 1.0)  # red
-                alert_text_params.set_bg_clr = 1
-                alert_text_params.text_bg_clr.set(0.0, 0.0, 0.0, 1)  # semi-transparent black
-
-                # ---- IN/OUT counts (below) ----
-                #count_text_params = display_meta.text_params[1]
-                #count_text_params.display_text = f"IN: {IN_COUNT}  |  OUT: {OUT_COUNT}"
-                #count_text_params.x_offset = 50
-                #count_text_params.y_offset = 70   # below alert line
-                #count_text_params.font_params.font_name = "Serif"
-                #count_text_params.font_params.font_size = 20
-                #count_text_params.font_params.font_color.set(1.0, 1.0, 1.0, 1.0)  # white
-                #count_text_params.set_bg_clr = 1
-                #count_text_params.text_bg_clr.set(0.0, 0.0, 0.0, 0.6)
-
-                pyds.nvds_add_display_meta_to_frame(frame_meta, display_meta)
-
-                if display_meta:
-                    # set num_labels equal to newline-count +1 so OSD allocates enough lines
+                if not display_meta:
+                    print("Warning: could not acquire display_meta")
+                else:
+                    # ensure at least 1 label
                     display_meta.num_labels = display_text.count("\n") + 1
+                    # use text_params[0] to display combined info
+                    tp = display_meta.text_params[0]
+                    tp.display_text = display_text
+                    tp.x_offset = 50
+                    tp.y_offset = 50
+                    tp.font_params.font_name = "Serif"
+                    tp.font_params.font_size = 27
+                    tp.set_bg_clr = 1
+                    tp.font_params.font_color.set(1.0, 1.0, 1.0, 1.0)
+                    tp.text_bg_clr.set(0.0, 0.0, 0.0, 1.0)
 
-                    display_meta.text_params[0].display_text = display_text
-                    display_meta.text_params[0].x_offset = 50
-                    display_meta.text_params[0].y_offset = 50
-                    display_meta.text_params[0].font_params.font_name = "Serif"
-                    display_meta.text_params[0].font_params.font_size = 20
-                    font_color = pyds.NvOSD_ColorParams()
-                    font_color.red = 1.0; font_color.green = 1.0; font_color.blue = 1.0; font_color.alpha = 1.0
-                    display_meta.text_params[0].font_params.font_color = font_color
-                    display_meta.text_params[0].set_bg_clr = 1
-                    bg_color = pyds.NvOSD_ColorParams()
-                    bg_color.red = 0.0; bg_color.green = 0.0; bg_color.blue = 0.0; bg_color.alpha = 0.6
-                    display_meta.text_params[0].text_bg_clr = bg_color
-
-                    # draw lines
+                    # draw lines (one-time per frame)
+                    display_meta.num_lines = 2
                     line1 = pyds.NvOSD_LineParams()
                     line1.x1, line1.y1 = IN_LINE[0]; line1.x2, line1.y2 = IN_LINE[1]
+                    line1.line_width = 4
                     blue = pyds.NvOSD_ColorParams(); blue.red=0.0; blue.green=0.0; blue.blue=1.0; blue.alpha=1.0
-                    line1.line_color = blue; line1.line_width = 4
+                    line1.line_color = blue
 
                     line2 = pyds.NvOSD_LineParams()
                     line2.x1, line2.y1 = OUT_LINE[0]; line2.x2, line2.y2 = OUT_LINE[1]
+                    line2.line_width = 4
                     red = pyds.NvOSD_ColorParams(); red.red=1.0; red.green=0.0; red.blue=0.0; red.alpha=1.0
-                    line2.line_color = red; line2.line_width = 4
+                    line2.line_color = red
 
-                    display_meta.num_lines = 2
                     display_meta.line_params[0] = line1
                     display_meta.line_params[1] = line2
 
                     pyds.nvds_add_display_meta_to_frame(frame_meta, display_meta)
-                else:
-                    print("Warning: could not acquire display_meta")
+
             except Exception as e:
                 print("Error creating/pushing display_meta:", e)
 
@@ -206,7 +197,7 @@ def bus_call(bus, msg, loop):
 def main():
     pipeline = Gst.Pipeline.new()
     src = Gst.ElementFactory.make("filesrc", "src")
-    src.set_property("location", "sam2.mp4")
+    src.set_property("location", "sam2.mp4") # Your Video 
     dec = Gst.ElementFactory.make("decodebin", "dec")
     mux = Gst.ElementFactory.make("nvstreammux", "mux")
     mux.set_property("width", 1920); mux.set_property("height", 1080)
